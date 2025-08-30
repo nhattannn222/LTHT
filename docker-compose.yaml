@@ -1,0 +1,64 @@
+version: '3.8'
+
+# Định nghĩa các dịch vụ (container) sẽ chạy
+services:
+  # Dịch vụ cho MQTT Broker
+  mosquitto:
+    image: eclipse-mosquitto
+    container_name: mosquitto-broker
+    restart: unless-stopped
+    ports:
+      - "1883:1883" # Cổng cho MQTT
+      - "9001:9001" # Cổng cho Websockets (nếu cần)
+    command: >
+      sh -c "echo 'listener 1883 0.0.0.0' > /mosquitto/config/mosquitto.conf &&
+             echo 'allow_anonymous true' >> /mosquitto/config/mosquitto.conf &&
+             /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf"
+
+  # Dịch vụ cho Cơ sở dữ liệu MySQL
+  mysql-db:
+    image: mysql:8.0
+    container_name: mysql-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: your_password
+      MYSQL_DATABASE: ltht_finalterm
+    ports:
+      - "3306:3306" # Mở cổng 3306 để có thể kết nối từ bên ngoài nếu cần
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  # Dịch vụ cho Backend Flask
+  flask-backend:
+    container_name: flask-backend
+    build: . # Xây dựng image từ Dockerfile trong thư mục hiện tại
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app 
+    depends_on:
+      - mysql-db     
+      - mosquitto   
+    environment:
+      # Truyền thông tin kết nối vào container
+      DATABASE_URI: 'mysql+pymysql://root:your_password@mysql-db/ltht_finalterm'
+      MQTT_BROKER_URL: 'mosquitto'
+
+  # Dịch vụ cho Grafana
+  grafana:
+    image: grafana/grafana-oss
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000" # Cổng để truy cập giao diện Grafana
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - mysql-db 
+
+# Định nghĩa volumes để lưu trữ dữ liệu
+volumes:
+  mysql-data:
+  grafana-data:
+
